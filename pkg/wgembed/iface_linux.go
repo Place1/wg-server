@@ -1,13 +1,17 @@
+// +build linux
+
 package wgembed
 
 import (
+	"fmt"
+
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 )
 
-func Up(name string) error {
-	link, err := netlink.LinkByName(name)
+func (wg *WireGuardInterface) Up() error {
+	link, err := netlink.LinkByName(wg.Name())
 	if err != nil {
 		return errors.Wrap(err, "failed to find wireguard interface")
 	}
@@ -19,13 +23,13 @@ func Up(name string) error {
 	return nil
 }
 
-func SetIP(name string, cidr string) error {
-	link, err := netlink.LinkByName(name)
+func (wg *WireGuardInterface) SetIP(ip string) error {
+	link, err := netlink.LinkByName(wg.Name())
 	if err != nil {
 		return errors.Wrap(err, "failed to find wireguard interface")
 	}
 
-	linkaddr, err := netlink.ParseAddr(cidr)
+	linkaddr, err := netlink.ParseAddr(fmt.Sprintf("%s/32", ip))
 	if err != nil {
 		return errors.Wrap(err, "failed to parse wireguard interface ip address")
 	}
@@ -37,18 +41,15 @@ func SetIP(name string, cidr string) error {
 	return nil
 }
 
-func ConfigureForwarding(wgIface string, gatewayIface string) error {
-	// Networking configuration (iptables) configuration
-	// to ensure that traffic from clients the wireguard interface
-	// is sent to the provided network interface
+func (wg *WireGuardInterface) ConfigureForwarding(gatewayIface string) error {
 	ipt, err := iptables.New()
 	if err != nil {
 		return errors.Wrap(err, "failed to init iptables")
 	}
-	if err := ipt.AppendUnique("filter", "FORWARD", "-i", gatewayIface, "-o", wgIface, "-j", "ACCEPT"); err != nil {
+	if err := ipt.AppendUnique("filter", "FORWARD", "-i", gatewayIface, "-o", wg.Name(), "-j", "ACCEPT"); err != nil {
 		return errors.Wrap(err, "failed to set ip tables rule")
 	}
-	if err := ipt.AppendUnique("filter", "FORWARD", "-i", wgIface, "-o", gatewayIface, "-j", "ACCEPT"); err != nil {
+	if err := ipt.AppendUnique("filter", "FORWARD", "-i", wg.Name(), "-o", gatewayIface, "-j", "ACCEPT"); err != nil {
 		return errors.Wrap(err, "failed to set ip tables rule")
 	}
 	if err := ipt.AppendUnique("nat", "POSTROUTING", "-o", gatewayIface, "-j", "MASQUERADE"); err != nil {

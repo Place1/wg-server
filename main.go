@@ -15,9 +15,12 @@ import (
 )
 
 var (
-	app    = kingpin.New("wg-server", "a cli app to run a simple userspace wireguard server")
-	config = app.Arg("config", "a wireguard configuration file").Required().File()
-	debug  = app.Flag("debug", "enable verbose logging").Bool()
+	app     = kingpin.New("wg-server", "a cli app to run a simple userspace wireguard server")
+	config  = app.Arg("config", "a wireguard configuration file, missing then config will be read from stdin").String()
+	debug   = app.Flag("debug", "enable verbose logging").Bool()
+	iface   = app.Flag("iface", "wirguard interface name").Default("wg0").String()
+	gateway = app.Flag("gateway", "the gateway nic").Default("eth0").String()
+	ip      = app.Flag("iface-ip", "the ip address of the wireguard interface").Default("10.50.0.1").String()
 )
 
 func main() {
@@ -27,13 +30,17 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	opts, err := wgembed.ReadConfig((*config).Name())
+	if *config == "" {
+		*config = "/dev/stdin"
+	}
+
+	opts, err := wgembed.ReadConfig(*config)
 	if err != nil {
 		logrus.Fatal(errors.Wrap(err, "failed to read wireguard config file"))
 	}
 
-	logrus.Info("starting wg0")
-	wg0, err := wgembed.StartInterface("wg0")
+	logrus.Info("starting interface")
+	wg0, err := wgembed.New(*iface)
 	if err != nil {
 		logrus.Fatal(errors.Wrap(err, "failed to create wg interface"))
 	}
@@ -43,23 +50,23 @@ func main() {
 		logrus.Fatal(errors.Wrap(err, "failed to create wg client"))
 	}
 
-	err = client.ConfigureDevice("wg0", opts.Config())
+	err = client.ConfigureDevice(*iface, opts.Config())
 	if err != nil {
 		logrus.Fatal(errors.Wrap(err, "failed to configure wireguard"))
 	}
 
-	logrus.Info("wg0 configured")
+	logrus.Info("interface configured")
 
-	if err := wgembed.Up("wg0"); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to bring wg0 up"))
+	if err := wg0.Up(); err != nil {
+		logrus.Fatal(errors.Wrap(err, "failed to bring interface up"))
 	}
 
-	if err := wgembed.SetIP("wg0", "10.50.0.1/32"); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to set wg0 ip"))
+	if err := wg0.SetIP(*ip); err != nil {
+		logrus.Fatal(errors.Wrap(err, "failed to set interface ip"))
 	}
 
-	if err := wgembed.ConfigureForwarding("wg0", "eth0"); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to set wg0 forwarding"))
+	if err := wg0.ConfigureForwarding(*gateway); err != nil {
+		logrus.Fatal(errors.Wrap(err, "failed to set interface forwarding"))
 	}
 
 	term := make(chan os.Signal)
@@ -71,6 +78,7 @@ func main() {
 	}
 
 	logrus.Info("shutting down")
+
 	wg0.Close()
 }
 

@@ -6,11 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"golang.zx2c4.com/wireguard/wgctrl"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/pkg/errors"
-	"github.com/place1/wg-server/pkg/wgembed"
+	"github.com/place1/wg-server/pkg/wgserver"
 	"github.com/sirupsen/logrus"
 )
 
@@ -34,40 +33,12 @@ func main() {
 		*config = "/dev/stdin"
 	}
 
-	opts, err := wgembed.ReadConfig(*config)
+	srv, err := wgserver.Start(*config, *gateway)
 	if err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to read wireguard config file"))
+		logrus.Fatal(errors.Wrap(err, "failed to start server"))
 	}
 
-	logrus.Info("starting interface")
-	wg0, err := wgembed.New(*iface)
-	if err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to create wg interface"))
-	}
-
-	client, err := wgctrl.New()
-	if err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to create wg client"))
-	}
-
-	err = client.ConfigureDevice(*iface, opts.Config())
-	if err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to configure wireguard"))
-	}
-
-	logrus.Info("interface configured")
-
-	if err := wg0.Up(); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to bring interface up"))
-	}
-
-	if err := wg0.SetIP(*ip); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to set interface ip"))
-	}
-
-	if err := wg0.ConfigureForwarding(*gateway); err != nil {
-		logrus.Fatal(errors.Wrap(err, "failed to set interface forwarding"))
-	}
+	logrus.Info("wireguard server started")
 
 	term := make(chan os.Signal)
 	signal.Notify(term, syscall.SIGTERM)
@@ -79,7 +50,7 @@ func main() {
 
 	logrus.Info("shutting down")
 
-	wg0.Close()
+	srv.Close()
 }
 
 func parseCIDR(cidr string) net.IPNet {

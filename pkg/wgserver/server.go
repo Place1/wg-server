@@ -19,7 +19,7 @@ func Start(configFile string, gateway string) (*WireGuardServer, error) {
 	}
 	srv.iface = wg0
 
-	if err := wg0.LoadConfig(configFile); err != nil {
+	if err := wg0.LoadConfigFile(configFile); err != nil {
 		logrus.Fatal(errors.Wrap(err, "failed to configure wireguard"))
 	}
 

@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/coreos/go-iptables v0.4.3
 	github.com/pkg/errors v0.8.1
-	github.com/place1/wg-embed v0.0.0
+	github.com/place1/wg-embed v0.1.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/vishvananda/netlink v1.0.0
